@@ -156,10 +156,10 @@ async function onAct(t) {
       async (f) => { const res = await act('createRoom', { name: f.get('n'), headcount: f.get('h'), deadline: f.get('d') }, '톡방을 만들었어요. 장소를 올려 주세요'); if (res?.result) { active = res.result.id; render(); } return !!res; });
     return;
   }
-  if (a === 'copy') return copyText(`[${r.name}] ${titleText(S.settings)}\n어디서 뭘 먹을지 같이 골라줘! ▶ ${linkOf(r)}`, '초대 메시지를 복사했어요. 카톡방에 붙여넣으세요');
+  if (a === 'copy') return copyText(`${titleText(S.settings)}\n어디서 뭘 먹을지 같이 골라줘! ▶ ${linkOf(r)}`, '초대 메시지를 복사했어요. 카톡방에 붙여넣으세요');
   if (a === 'announce') {
     const pl = r.places.find((x) => x.id === r.confirmed_place), w = whenText(r);
-    return copyText(`[${r.name}] 청모 장소 확정!\n${w ? w + ' · ' : ''}${pl?.title || ''}\n자세히 보기 ▶ ${linkOf(r)}`, '발표 메시지를 복사했어요');
+    return copyText(`청모 장소 확정!\n${w ? w + ' · ' : ''}${pl?.title || ''}\n자세히 보기 ▶ ${linkOf(r)}`, '발표 메시지를 복사했어요');
   }
   if (a === 'editroom') {
     const b = dialog('방 설정', `<label class="field">톡방 이름<input name="n" required maxlength="20" value="${esc(r.name)}"></label><div class="row2"><label class="field">인원<input name="h" type="number" min="1" max="99" value="${r.headcount}"></label><label class="field">투표 마감일<input name="d" type="date" value="${esc(r.deadline || '')}"></label></div><button type="button" class="pbtn ghost sm" id="del-room" style="justify-self:start;color:var(--red)">이 톡방 삭제</button>`,

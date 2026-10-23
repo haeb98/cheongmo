@@ -76,7 +76,7 @@ function introHTML() {
     <span class="invite">INVITATION · ${esc(r.name)}</span>
     <h1 class="big-title">${esc(titleText(D.settings))}</h1>
     <p class="sub">${D.counts.players}명 참여 중${r.deadline ? ` · ${shortDate(r.deadline)}까지 (${dday(r.deadline)})` : ''}</p>
-    <label class="field">플레이어 이름<input id="g-name" maxlength="10" value="${esc(ui.name)}" placeholder="카톡 닉네임처럼" autocomplete="nickname" enterkeyhint="go"></label>
+    <label class="field">플레이어 이름<input id="g-name" maxlength="10" value="${esc(ui.name)}" placeholder="닉네임 입력" autocomplete="nickname" enterkeyhint="go"></label>
     <button class="pbtn pink big" data-g="start"><span class="blink">▶</span> ${me()?.drink != null ? 'CONTINUE' : 'PRESS START'}</button></div>`;
 }
 function stage1() {
@@ -193,8 +193,7 @@ app.addEventListener('click', async (e) => {
   if (a === 'toggleall') { ui.showAll = !ui.showAll; render(); return; }
   if (a === 'drink') {
     const v = t.dataset.v === '1'; popId = v ? 'y' : 'n'; say = pick(v ? REACT.y : REACT.n); jump = true;
-    const p = send({ drink: v }); render(); await p;
-    setTimeout(() => { if (ui.stage === 1) go(2); }, 800); return;
+    send({ drink: v }); render(); return;
   }
   if (a === 'food') {
     const id = t.dataset.v, on = !m.food_ids.includes(id);

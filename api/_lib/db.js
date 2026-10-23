@@ -9,8 +9,11 @@ export const usingSupabase = Boolean(SB_URL && SB_KEY);
 export const PHOTO_BUCKET = 'photos';
 
 /* ---------------- Supabase (PostgREST) ---------------- */
+// 새 secret 키(sb_secret_…)는 JWT가 아니라서 apikey 헤더로만 보내요.
+// 예전 service_role 키(eyJ…로 시작하는 JWT)일 때만 Authorization 헤더도 함께 보내요.
+const authHeaders = () => (SB_KEY.startsWith('eyJ') ? { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } : { apikey: SB_KEY });
 function sbHeaders(extra = {}) {
-  return { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', ...extra };
+  return { ...authHeaders(), 'Content-Type': 'application/json', ...extra };
 }
 function sbFilter(filters = {}) {
   const q = new URLSearchParams();
@@ -46,7 +49,7 @@ const supabase = {
   },
   async uploadPhoto(path, bytes, contentType) {
     const res = await fetch(`${SB_URL}/storage/v1/object/${PHOTO_BUCKET}/${path}`, {
-      method: 'POST', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': contentType, 'x-upsert': 'true' }, body: bytes,
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': contentType, 'x-upsert': 'true' }, body: bytes,
     });
     if (!res.ok) throw new Error(`사진 업로드 실패 (${res.status}): ${(await res.text()).slice(0, 200)}`);
     return `${SB_URL}/storage/v1/object/public/${PHOTO_BUCKET}/${path}`;

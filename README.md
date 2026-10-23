@@ -18,9 +18,10 @@
 1. [supabase.com](https://supabase.com)에서 새 프로젝트를 만들어요. 지역은 **Northeast Asia (Seoul)** 를 추천해요.
 2. 왼쪽 메뉴 **SQL Editor**를 열고 `supabase/schema.sql` 내용을 통째로 붙여넣은 뒤 **Run**을 눌러요.
    테이블, 기본 음식 메뉴 6개, 사진 저장소(`photos`)가 만들어져요.
-3. **Project Settings → API**에서 두 값을 복사해 둬요.
-   - `Project URL` → `SUPABASE_URL`
-   - `service_role` 키 → `SUPABASE_SERVICE_ROLE_KEY` (이 키는 서버에서만 쓰여요. 절대 공개하지 마세요)
+3. 두 값을 복사해 둬요.
+   - **`SUPABASE_URL`**: 프로젝트 화면 위쪽 **Connect** 버튼, 또는 **Project Settings → Data API**의 API URL (`https://xxxx.supabase.co`)
+   - **`SUPABASE_SERVICE_ROLE_KEY`**: **Project Settings → API Keys**의 **Secret keys** 항목 (`sb_secret_…`).
+     예전 방식의 `service_role` 키(`eyJ…`, Legacy 탭)를 넣어도 돼요. 둘 다 서버에서만 쓰여요. 절대 공개하지 마세요
 
 ### 2. Vercel 배포
 

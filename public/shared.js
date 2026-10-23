@@ -29,7 +29,35 @@ export function dday(date) {
   return n < 0 ? '마감됨' : n === 0 ? '오늘 마감' : 'D-' + n;
 }
 export const shortDate = (d) => (d ? d.slice(5).replace('-', '.') : '');
-export const matches = (place, me) => (me.drink !== true || place.alcohol) && (place.food_ids || []).some((f) => (me.food_ids || []).includes(f));
+/* ---------- 술 종류 (고정 목록) ---------- */
+export const DRINKS = [
+  { id: 'beer', name: '맥주', sprite: 'beer' },
+  { id: 'soju', name: '소주', sprite: 'soju' },
+  { id: 'wine', name: '와인', sprite: 'wine' },
+  { id: 'whisky', name: '위스키', sprite: 'whisky' },
+  { id: 'etc', name: '그 외', sub: '사케·고량주 등', sprite: 'sake' },
+  { id: 'corkage', name: '콜키지', sprite: 'corkage' },
+];
+export const drinkOf = (id) => DRINKS.find((d) => d.id === id);
+
+// 장소가 친구 취향에 맞는지: 고른 음식이 있거나, (마시는 친구라면) 고른 술이 있으면 후보예요.
+export const foodScore = (place, me) => (place.food_ids || []).filter((f) => (me.food_ids || []).includes(f)).length;
+export const drinkScore = (place, me) => (me.drink === true ? (place.drink_ids || []).filter((d) => (me.drink_ids || []).includes(d)).length : 0);
+export const matches = (place, me) => foodScore(place, me) > 0 || drinkScore(place, me) > 0;
+
+// 네이버 지도 "공유 → 복사" 글에서 링크와 가게 이름을 뽑아요.
+// 예) "[네이버 지도]\n을지로 와인바\n서울 중구 ...\nhttps://naver.me/abcd"
+export function parseShare(text) {
+  const raw = String(text || '');
+  const url = raw.match(/https?:\/\/[^\s<>"'）)]+/)?.[0] || '';
+  const header = /\[?\s*네이버\s*(지도|플레이스|map)\s*\]?/i;
+  const hadHeader = header.test(raw);
+  const lines = raw.replace(url, '\n').split(/\r?\n/).map((l) => l.replace(header, '').trim()).filter(Boolean);
+  const looksLikeAddress = (l) => /(특별시|광역시|시|도|구|군|읍|면|동|로|길)\s*\d/.test(l);
+  let name = '';
+  if (lines.length && (hadHeader || lines.length > 1) && !looksLikeAddress(lines[0])) name = lines[0];
+  return { url, name: name.slice(0, 60) };
+}
 
 /* ---------- 픽셀 스프라이트 ---------- */
 export const PAL = { w: '#F4F1FF', v: '#C9C2E8', k: '#14121C', h: '#FF9BC4', p: '#FF5FA2', P: '#FF9CC8', r: '#7A3324', R: '#C8553D', y: '#D9A22E', Y: '#FFD84D', o: '#D9662A', O: '#FF9F4A', g: '#AEB8CC', G: '#3FBF7F', H: '#2B8A5A', b: '#3D5AFE', B: '#7B95FF', c: '#C9B07E', C: '#F3E6C4', d: '#6B4A2E' };
@@ -48,9 +76,12 @@ export const SPR = {
   dumpling: ['....c.c.c...', '...cCcCcCc..', '..cCCCCCCCc.', '.cCCCCCCCCCc', '.cCCCCCCCCCc', '..cccccccccc'],
   chicken: ['.....ooo....', '...oOOOOo...', '..oOOOOOOo..', '..oOOYOOOo..', '...oOOOOo...', '....oOOo....', '.....ww.....', '....w..w....'],
   place: ['.....pp.....', '....pPPp....', '...pPPPPp...', '..pPPPPPPp..', '..wwwwwwww..', '..wYwwwwYw..', '..wwwwwwww..', '..wYwwdwYw..', '..wwwwdwww..'],
+  whisky: ['............', '............', '..g......g..', '..gwwOOOOg..', '..gwwwOOOg..', '..gOOOOOOg..', '..gOOOOOOg..', '..gyOOOOyg..', '..gggggggg..'],
+  sake: ['....ww......', '....bb......', '...wwww.....', '..wwwwww....', '..wbbbbw....', '..wwwwww....', '..wwwwww.ww.', '...wwww..vv.'],
+  corkage: ['....dd......', '....HH......', '....HH......', '...HHHH.....', '..HHHHHH....', '..HwwwwH.pp.', '..HwRRwH.pp.', '..HwwwwH....', '..HHHHHH....', '..HHHHHH....'],
   heart: ['............', '..pp...pp...', '.pPPp.pPPp..', '.pPPPpPPPp..', '.pPPPPPPPp..', '..pPPPPPp...', '...pPPPp....', '....pPp.....', '.....p......'],
 };
-export const FOOD_SPRITES = ['meat', 'sushi', 'pasta', 'rice', 'dumpling', 'chicken', 'wine', 'soju', 'beer', 'juice', 'heart'];
+export const FOOD_SPRITES = ['meat', 'sushi', 'pasta', 'rice', 'dumpling', 'chicken', 'heart'];
 
 const spCache = {};
 export function spr(name) {
@@ -66,10 +97,11 @@ export function spr(name) {
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const safeUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '');
 export const img = (n, cls = '') => `<img class="px ${cls}" src="${spr(n)}" alt="">`;
+// 사진이 없을 때 쓰는 그림: 첫 음식 → 첫 술 → 집 모양
+export const placeSprite = (place, foods) => foods.find((x) => x.id === (place.food_ids || [])[0])?.sprite || drinkOf((place.drink_ids || [])[0])?.sprite || 'place';
 export function thumb(place, foods, cls = 'thumb') {
   if (place.photo_url) return `<img class="${cls}" src="${esc(place.photo_url)}" alt="" referrerpolicy="no-referrer" loading="lazy">`;
-  const f = foods.find((x) => x.id === (place.food_ids || [])[0]);
-  return `<img class="${cls} px" src="${spr(f?.sprite || 'place')}" alt="">`;
+  return `<img class="${cls} px" src="${spr(placeSprite(place, foods))}" alt="">`;
 }
 export function bar(icon, label, n, max, win, tools = '') {
   return `<div class="brow ${win ? 'win' : ''}">${icon}<span class="lab">${label}</span><span class="num">${n}표</span><div class="track"><i style="width:${max ? (n / max) * 100 : 0}%"></i></div>${tools ? `<div class="tools">${tools}</div>` : ''}</div>`;

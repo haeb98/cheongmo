@@ -4,6 +4,9 @@ import { db } from './db.js';
 import { HttpError, str } from './http.js';
 
 const SPRITES = ['meat', 'sushi', 'pasta', 'rice', 'dumpling', 'chicken', 'wine', 'soju', 'beer', 'juice', 'heart'];
+// 술 종류 (public/shared.js 의 DRINKS 와 같은 목록)
+const DRINK_IDS = ['beer', 'soju', 'wine', 'whisky', 'etc', 'corkage'];
+const drinkList = (v) => [...new Set((Array.isArray(v) ? v : []).filter((d) => DRINK_IDS.includes(d)))];
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
 const isTime = (v) => /^\d{2}:\d{2}$/.test(v || '');
 
@@ -20,11 +23,12 @@ export async function roomByCode(code) {
 }
 
 export function tally(players) {
-  const c = { players: 0, drink: { yes: 0, no: 0 }, foods: {}, places: {} };
+  const c = { players: 0, drink: { yes: 0, no: 0 }, drinks: {}, foods: {}, places: {} };
   for (const p of players) {
     if (p.drink == null) continue;
     c.players++;
     p.drink ? c.drink.yes++ : c.drink.no++;
+    if (p.drink) (p.drink_ids || []).forEach((d) => (c.drinks[d] = (c.drinks[d] || 0) + 1));
     (p.food_ids || []).forEach((f) => (c.foods[f] = (c.foods[f] || 0) + 1));
     if (p.place_id) c.places[p.place_id] = (c.places[p.place_id] || 0) + 1;
   }
@@ -39,7 +43,7 @@ export async function publicRoom(code, deviceId) {
   const me = deviceId ? players.find((p) => p.device_id === deviceId) : null;
   return {
     room, settings, foods, places, counts: tally(players),
-    me: me ? { name: me.name, drink: me.drink, food_ids: me.food_ids || [], place_id: me.place_id } : null,
+    me: me ? { name: me.name, drink: me.drink, drink_ids: me.drink_ids || [], food_ids: me.food_ids || [], place_id: me.place_id } : null,
   };
 }
 
@@ -52,6 +56,8 @@ export async function vote(body) {
   if (!name) throw new HttpError('플레이어 이름을 적어 주세요');
   const row = { room_id: room.id, device_id, name, updated_at: new Date().toISOString() };
   if ('drink' in body) row.drink = body.drink === null ? null : Boolean(body.drink);
+  if ('drink_ids' in body) row.drink_ids = drinkList(body.drink_ids);
+  if (row.drink === false) row.drink_ids = []; // 안 마시는 친구는 술 종류 없음
   if ('food_ids' in body) {
     const valid = new Set((await listFoods()).map((f) => f.id));
     row.food_ids = [...new Set((Array.isArray(body.food_ids) ? body.food_ids : []).filter((id) => valid.has(id)))];
@@ -98,10 +104,11 @@ function placeFields(b) {
   const title = str(b.title, 60);
   if (!title) throw new HttpError('장소 이름을 적어 주세요');
   const food_ids = Array.isArray(b.food_ids) ? b.food_ids.map((x) => str(x, 64)).filter(Boolean) : [];
-  if (!food_ids.length) throw new HttpError('음식 태그를 하나 이상 골라 주세요');
+  const drink_ids = drinkList(b.drink_ids);
+  if (!food_ids.length && !drink_ids.length) throw new HttpError('음식이나 술 종류를 하나 이상 골라 주세요');
   const photo = String(b.photo_url || '').trim();
   const okPhoto = (/^https:\/\//.test(photo) && photo.length <= 600) || (photo.startsWith('data:image/') && photo.length <= 400_000);
-  return { title, memo: str(b.memo, 80), url, food_ids, alcohol: Boolean(b.alcohol), photo_url: okPhoto ? photo : null };
+  return { title, memo: str(b.memo, 80), url, food_ids, drink_ids, photo_url: okPhoto ? photo : null };
 }
 
 export const adminActions = {

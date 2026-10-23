@@ -204,3 +204,8 @@ footer{font-size:12.5px;color:var(--muted);border-top:2px solid var(--line);padd
 .chip{font-size:12.5px;padding:1px 8px;border:1px solid var(--line);background:var(--bg);color:var(--muted)}
 /* iOS에서 입력창을 누를 때 화면이 확대되지 않도록 */
 @media (max-width:600px){.field input,.field select,.dlg input{font-size:16px}}
+/* 술 종류 */
+.gcard .sub{font-family:var(--f-body);font-size:11px;color:var(--muted);margin-top:-4px}
+.tg.drink{border-style:dashed}
+.tg.hit{border-color:var(--mint);color:var(--mint);border-style:solid}
+.tgl small{font-size:11px;color:var(--muted)}

@@ -4,7 +4,7 @@
 import { handle, json, fail, readJson } from './_lib/http.js';
 import { isAdmin, checkPassword, sessionCookie, clearCookie, adminPassword } from './_lib/auth.js';
 import { adminState, adminActions } from './_lib/store.js';
-import { fetchOg } from './_lib/og.js';
+import { fetchOg, OgError } from './_lib/og.js';
 import { usingSupabase } from './_lib/db.js';
 
 const meta = () => ({ storage: usingSupabase ? 'supabase' : 'memory' });
@@ -27,7 +27,10 @@ export const POST = handle(async (request) => {
 
   if (action === 'og') {
     try { return json(await fetchOg(String(body.url || ''))); }
-    catch { return fail('링크에서 정보를 가져오지 못했어요. 이름을 직접 적어 주세요', 422); }
+    catch (e) {
+      console.error('og fetch failed:', body.url, e?.message);
+      return fail(e instanceof OgError ? e.message : '링크에서 정보를 가져오지 못했어요', 422);
+    }
   }
   const fn = adminActions[action];
   if (!fn) return fail('알 수 없는 작업이에요', 400);

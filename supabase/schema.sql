@@ -39,7 +39,7 @@ create table if not exists places (
   memo text not null default '',
   url text not null default '',
   food_ids uuid[] not null default '{}',
-  alcohol boolean not null default true,
+  alcohol boolean not null default true, -- v1에서 쓰던 칸 (지금은 안 써요)
   photo_url text,
   created_at timestamptz not null default now()
 );
@@ -56,6 +56,10 @@ create table if not exists players (
   created_at timestamptz not null default now(),
   unique (room_id, device_id)
 );
+-- v2: 술 종류 (맥주·소주·와인·위스키·그 외·콜키지). 이미 만든 DB에도 이 줄들만 다시 실행하면 돼요.
+alter table places add column if not exists drink_ids text[] not null default '{}';
+alter table players add column if not exists drink_ids text[] not null default '{}';
+
 create index if not exists places_room_idx on places(room_id);
 create index if not exists players_room_idx on players(room_id);
 

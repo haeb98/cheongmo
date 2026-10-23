@@ -1,5 +1,5 @@
 // 관리자 화면: /admin
-import { titles, titleText, whenText, dday, shortDate, img, thumb, bar, esc, safeUrl, toast, api, copyText, startBlink, spr, FOOD_SPRITES } from './shared.js';
+import { titles, titleText, whenText, dday, shortDate, placeSprite, img, thumb, bar, esc, safeUrl, toast, api, copyText, startBlink, spr, FOOD_SPRITES, DRINKS, drinkOf, parseShare } from './shared.js';
 
 const view = document.getElementById('view');
 let S = null;            // 서버 상태
@@ -11,9 +11,10 @@ const R = () => S.rooms.find((r) => r.id === active) || S.rooms[0];
 const food = (id) => S.foods.find((f) => f.id === id);
 const linkOf = (r) => `${location.origin}/r/${r.code}`;
 function tally(players) {
-  const c = { n: 0, yes: 0, no: 0, foods: {}, places: {} };
+  const c = { n: 0, yes: 0, no: 0, drinks: {}, foods: {}, places: {} };
   players.filter((p) => p.drink != null).forEach((p) => {
     c.n++; p.drink ? c.yes++ : c.no++;
+    if (p.drink) (p.drink_ids || []).forEach((d) => (c.drinks[d] = (c.drinks[d] || 0) + 1));
     (p.food_ids || []).forEach((f) => (c.foods[f] = (c.foods[f] || 0) + 1));
     if (p.place_id) c.places[p.place_id] = (c.places[p.place_id] || 0) + 1;
   });
@@ -73,28 +74,30 @@ function resultPanel(r, c) {
   return `<section class="panel"><h2>현재 결과<button class="pbtn ghost sm" data-act="refresh">새로고침</button></h2>
     <div class="stat"><h3>STAGE 1 · 음주 여부</h3>
       ${c.yes + c.no ? `<div class="split"><span class="y" style="flex-grow:${c.yes || 0.001}">${c.yes ? '마신다 ' + c.yes : ''}</span><span class="n" style="flex-grow:${c.no || 0.001}">${c.no ? '안 마신다 ' + c.no : ''}</span></div>` : '<span class="mini">아직 아무도 고르지 않았어요. 카톡방에 링크를 보내 보세요.</span>'}</div>
-    <div class="stat"><h3>STAGE 2 · 음식 (여러 개)</h3>
+    <div class="stat"><h3>STAGE 2 · 술 종류 (마시는 친구만, 여러 개)</h3>
+      ${(() => { const dm = Math.max(0, ...DRINKS.map((d) => c.drinks[d.id] || 0)); return [...DRINKS].sort((a, b) => (c.drinks[b.id] || 0) - (c.drinks[a.id] || 0)).map((d) => { const n = c.drinks[d.id] || 0; return bar(img(d.sprite), esc(d.name), n, dm, n > 0 && n === dm); }).join(''); })()}</div>
+    <div class="stat"><h3>STAGE 3 · 음식 (여러 개)</h3>
       ${[...S.foods].sort((a, b) => (c.foods[b.id] || 0) - (c.foods[a.id] || 0)).map((f) => { const n = c.foods[f.id] || 0; return bar(img(f.sprite), esc(f.name), n, fmax, n > 0 && n === fmax); }).join('')}</div>
-    <div class="stat"><h3>STAGE 3 · 장소 (하나만)</h3>
+    <div class="stat"><h3>STAGE 4 · 장소 (하나만)</h3>
       ${r.places.length ? [...r.places].sort((a, b) => (c.places[b.id] || 0) - (c.places[a.id] || 0)).map((p) => {
         const n = c.places[p.id] || 0, conf = r.confirmed_place === p.id;
         return bar(thumb(p, S.foods, 'px-ico'), esc(p.title) + (conf ? ' <span class="badge">확정</span>' : ''), n, pmax, conf || (n > 0 && n === pmax && !r.confirmed_place),
           `<button class="pbtn sm ${conf ? 'ghost' : ''}" data-act="confirm" data-id="${p.id}">${conf ? '확정 취소' : '이 장소로 확정'}</button>`);
       }).join('') : '<span class="mini">장소 후보를 먼저 올려 주세요.</span>'}</div>
-    ${voters.length ? `<div class="stat"><h3>참여한 친구</h3><div class="players">${voters.map((p) => `<span class="chip" title="${esc((p.food_ids || []).map(food).filter(Boolean).map((f) => f.name).join(', '))}">${esc(p.name)} · ${p.drink ? '술' : '노술'}${p.place_id ? '' : ' · 진행 중'}</span>`).join('')}</div>
+    ${voters.length ? `<div class="stat"><h3>참여한 친구</h3><div class="players">${voters.map((p) => `<span class="chip" title="${esc([...(p.drink ? (p.drink_ids || []).map(drinkOf).filter(Boolean) : []), ...(p.food_ids || []).map(food).filter(Boolean)].map((f) => f.name).join(', '))}">${esc(p.name)} · ${p.drink ? '술' : '노술'}${p.place_id ? '' : ' · 진행 중'}</span>`).join('')}</div>
       <button class="pbtn ghost sm" style="justify-self:start" data-act="resetvotes">이 방 투표 전부 지우기</button></div>` : ''}
   </section>`;
 }
 function placeForm() {
   const d = draft;
   return `<form class="addp" id="pform">
-    <label class="field">링크 (네이버 지도·플레이스 공유 링크를 붙여넣어 주세요)<input id="pf-url" type="url" value="${esc(d.url)}" placeholder="https://naver.me/..." autocomplete="off"></label>
+    <label class="field">네이버 지도 링크 (공유 → 복사한 글을 통째로 붙여넣어도 돼요)<input id="pf-url" type="text" inputmode="url" value="${esc(d.url)}" placeholder="https://naver.me/..." autocomplete="off" autocapitalize="off" spellcheck="false"></label>
     <span class="og-status" id="og-status"></span>
     <div class="row2"><label class="field">장소 이름<input id="pf-title" maxlength="60" value="${esc(d.title)}" placeholder="링크를 넣으면 자동으로 채워져요" required></label>
     <label class="field">한 줄 메모<input id="pf-memo" maxlength="80" value="${esc(d.memo)}" placeholder="예: 1인 4만원, 룸 있음"></label></div>
-    <div class="field">어떤 음식이 있나요? (여러 개)<div class="tags">${S.foods.map((f) => `<button type="button" class="tgl" data-ft="${f.id}" aria-pressed="${d.food_ids.includes(f.id)}">${img(f.sprite)}${esc(f.name)}</button>`).join('')}</div></div>
-    <div class="field">술<div class="tags"><button type="button" class="tgl" data-alc="1" aria-pressed="${d.alcohol}">${img('beer')}술 마실 수 있어요</button><button type="button" class="tgl" data-alc="0" aria-pressed="${!d.alcohol}">${img('juice')}술 없어요</button></div></div>
-    <div class="field">대표 사진<div class="photo-row"><img id="pf-prev" class="thumb ${d.photo_url ? '' : 'px'}" src="${esc(d.photo_url) || spr(food(d.food_ids[0])?.sprite || 'place')}" alt="" referrerpolicy="no-referrer">
+    <div class="field">어떤 음식이 있나요? (여러 개, 없으면 비워도 돼요)<div class="tags">${S.foods.map((f) => `<button type="button" class="tgl" data-ft="${f.id}" aria-pressed="${d.food_ids.includes(f.id)}">${img(f.sprite)}${esc(f.name)}</button>`).join('')}</div></div>
+    <div class="field">마실 수 있는 술 (여러 개, 술이 없는 곳이면 비워 두세요)<div class="tags">${DRINKS.map((x) => `<button type="button" class="tgl" data-dt="${x.id}" aria-pressed="${(d.drink_ids || []).includes(x.id)}">${img(x.sprite)}${esc(x.name)}${x.sub ? ` <small>${esc(x.sub)}</small>` : ''}</button>`).join('')}</div></div>
+    <div class="field">대표 사진<div class="photo-row"><img id="pf-prev" class="thumb ${d.photo_url ? '' : 'px'}" src="${esc(d.photo_url) || spr(placeSprite(d, S.foods))}" alt="" referrerpolicy="no-referrer">
       <div style="display:grid;gap:6px"><input id="pf-photo" type="file" accept="image/*">${d.photo_url ? '<button type="button" class="pbtn ghost sm" data-act="clearphoto" style="justify-self:start">사진 빼기</button>' : ''}</div></div></div>
     <div class="actions"><button class="pbtn mint" type="submit">${d.id ? '수정 저장' : '장소 올리기'}</button><button class="pbtn ghost" type="button" data-act="cancelplace">취소</button></div></form>`;
 }
@@ -103,13 +106,13 @@ function placesPanel(r) {
     ${draft ? placeForm() : ''}
     <div class="plist">${r.places.map((p) => `<div class="pitem">${thumb(p, S.foods)}<div class="pi-main">
       <span class="pi-title">${esc(p.title)}</span>${p.memo ? `<span class="mini">${esc(p.memo)}</span>` : ''}
-      <div class="tags">${(p.food_ids || []).map(food).filter(Boolean).map((f) => `<span class="tg">${img(f.sprite)}${esc(f.name)}</span>`).join('')}<span class="tg ${p.alcohol ? 'alc' : 'noalc'}">${p.alcohol ? '술 OK' : '술 없음'}</span></div>
+      <div class="tags">${(p.food_ids || []).map(food).filter(Boolean).map((f) => `<span class="tg">${img(f.sprite)}${esc(f.name)}</span>`).join('')}${(p.drink_ids || []).map(drinkOf).filter(Boolean).map((x) => `<span class="tg drink">${img(x.sprite)}${esc(x.name)}</span>`).join('')}</div>
       ${safeUrl(p.url) ? `<a class="c-link" href="${esc(p.url)}" target="_blank" rel="noopener">링크 열기 ↗</a>` : ''}
       <div class="actions"><button class="pbtn sm" data-act="editplace" data-id="${p.id}">수정</button><button class="pbtn sm ghost" data-act="delplace" data-id="${p.id}">삭제</button></div>
     </div></div>`).join('') || '<span class="mini">아직 장소가 없어요. 네이버 지도에서 "공유 → 링크 복사"한 주소를 붙여넣어 보세요.</span>'}</div></section>`;
 }
 function foodsPanel() {
-  return `<section class="panel"><h2>음식 메뉴<span class="tag">STAGE 2</span></h2>
+  return `<section class="panel"><h2>음식 메뉴<span class="tag">STAGE 3</span></h2>
     <div class="tags">${S.foods.map((f) => `<span class="tgl">${img(f.sprite)}${esc(f.name)}<button class="pbtn ghost sm" style="padding:0 4px;border:0" data-act="delfood" data-id="${f.id}" aria-label="${esc(f.name)} 삭제">×</button></span>`).join('')}
     <button class="pbtn sm" data-act="addfood">+ 메뉴</button></div>
     <span class="hint">모든 톡방에 같은 메뉴가 나와요. 장소마다 음식 태그를 달면 친구가 고른 음식에 맞는 장소가 위로 올라와요.</span></section>`;
@@ -183,8 +186,8 @@ async function onAct(t) {
     if (!t.dataset.sure) { t.dataset.sure = 1; t.textContent = '정말 지울까요? 한 번 더 누르면 삭제'; return; }
     await act('resetVotes', { roomId: r.id }, '투표를 모두 지웠어요'); return;
   }
-  if (a === 'newplace') { draft = { url: '', title: '', memo: '', food_ids: [], alcohol: true, photo_url: null }; render(); document.getElementById('pf-url')?.focus(); return; }
-  if (a === 'editplace') { const p = r.places.find((x) => x.id === t.dataset.id); draft = { ...p, food_ids: [...p.food_ids] }; render(); document.getElementById('pform')?.scrollIntoView({ block: 'center' }); return; }
+  if (a === 'newplace') { draft = { url: '', title: '', memo: '', food_ids: [], drink_ids: [], photo_url: null }; render(); document.getElementById('pf-url')?.focus(); return; }
+  if (a === 'editplace') { const p = r.places.find((x) => x.id === t.dataset.id); draft = { ...p, food_ids: [...(p.food_ids || [])], drink_ids: [...(p.drink_ids || [])] }; render(); document.getElementById('pform')?.scrollIntoView({ block: 'center' }); return; }
   if (a === 'cancelplace') { draft = null; render(); return; }
   if (a === 'clearphoto') { syncDraft(); draft.photo_url = null; render(); return; }
   if (a === 'delplace') {
@@ -212,15 +215,20 @@ function syncDraft() {
 }
 
 view.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-room],[data-act],[data-ft],[data-alc]'); if (!t || !S) return;
+  const t = e.target.closest('[data-room],[data-act],[data-ft],[data-dt]'); if (!t || !S) return;
   if (t.dataset.room) { active = t.dataset.room; draft = null; render(); return; }
   if (t.dataset.ft) {
     const on = t.getAttribute('aria-pressed') !== 'true'; t.setAttribute('aria-pressed', on);
     draft.food_ids = on ? [...draft.food_ids, t.dataset.ft] : draft.food_ids.filter((x) => x !== t.dataset.ft);
-    if (!draft.photo_url) document.getElementById('pf-prev').src = spr(food(draft.food_ids[0])?.sprite || 'place');
+    if (!draft.photo_url) document.getElementById('pf-prev').src = spr(placeSprite(draft, S.foods));
     return;
   }
-  if (t.dataset.alc) { draft.alcohol = t.dataset.alc === '1'; view.querySelectorAll('[data-alc]').forEach((x) => x.setAttribute('aria-pressed', (x.dataset.alc === '1') === draft.alcohol)); return; }
+  if (t.dataset.dt) {
+    const on = t.getAttribute('aria-pressed') !== 'true'; t.setAttribute('aria-pressed', on);
+    draft.drink_ids = on ? [...draft.drink_ids, t.dataset.dt] : draft.drink_ids.filter((x) => x !== t.dataset.dt);
+    if (!draft.photo_url) document.getElementById('pf-prev').src = spr(placeSprite(draft, S.foods));
+    return;
+  }
   if (t.dataset.act) onAct(t);
 });
 
@@ -237,12 +245,29 @@ async function fetchOg(url) {
     if (og.title && ti && !ti.value.trim()) ti.value = og.title;
     if (og.description && me && !me.value.trim()) me.value = og.description.slice(0, 40);
     if (og.image && !draft.photo_url) { draft.photo_url = og.image; const pv = document.getElementById('pf-prev'); pv.src = og.image; pv.classList.remove('px'); }
-    if (st) st.textContent = og.title ? `가져왔어요: ${og.title}` : '이름을 찾지 못했어요. 직접 적어 주세요';
+    const ti2 = document.getElementById('pf-title')?.value.trim();
+    if (st) st.textContent = og.title ? `가져왔어요: ${og.title}${og.image ? ' (사진 포함)' : ''}` : ti2 ? '이름은 채웠어요. 사진은 직접 올려 주세요' : '이름을 찾지 못했어요. 직접 적어 주세요';
   } catch (e) {
     if (seq !== ogSeq) return;
-    if (st) { st.className = 'og-status err'; st.textContent = e.message; }
+    const hasName = document.getElementById('pf-title')?.value.trim();
+    if (st) { st.className = 'og-status err'; st.textContent = hasName ? `이름은 공유 글에서 채웠어요. 사진은 직접 올려 주세요 (${e.message})` : e.message; }
   }
 }
+
+// 붙여넣은 글에서 링크·이름을 꺼내 채우고, 네이버에서 사진·이름을 더 가져와요
+function takeShare(text) {
+  const { url, name } = parseShare(text);
+  const u = document.getElementById('pf-url'), ti = document.getElementById('pf-title');
+  if (url && u && u.value.trim() !== url) u.value = url;
+  if (name && ti && !ti.value.trim()) ti.value = name;
+  if (url) fetchOg(url);
+}
+view.addEventListener('paste', (e) => {
+  if (e.target.id !== 'pf-url') return;
+  const text = e.clipboardData?.getData('text') || '';
+  if (!/\n|\[|\s/.test(text.trim())) return; // 링크만 붙여넣은 경우는 그대로
+  e.preventDefault(); clearTimeout(ogTimer); takeShare(text);
+});
 
 let settingsTimer;
 function saveSettings() {
@@ -256,7 +281,7 @@ view.addEventListener('input', (e) => {
   const id = e.target.id;
   if (id === 'host') { S.settings.host = e.target.value.trim(); view.querySelectorAll('#title-opts .opt span').forEach((o, i) => (o.textContent = titles(S.settings.host)[i])); saveSettings(); }
   if (id === 'custom-title') { S.settings.custom_title = e.target.value; S.settings.title_idx = 4; view.querySelector('input[name="tt"][value="4"]').checked = true; saveSettings(); }
-  if (id === 'pf-url') { clearTimeout(ogTimer); ogTimer = setTimeout(() => fetchOg(e.target.value.trim()), 500); }
+  if (id === 'pf-url') { clearTimeout(ogTimer); ogTimer = setTimeout(() => takeShare(e.target.value), 500); }
 });
 view.addEventListener('change', (e) => {
   if (e.target.name === 'tt') { S.settings.title_idx = Number(e.target.value); saveSettings(); }
@@ -284,8 +309,9 @@ view.addEventListener('submit', async (e) => {
   if (e.target.id !== 'pform') return;
   e.preventDefault(); syncDraft();
   if (!draft.title) { toast('장소 이름을 적어 주세요'); return; }
-  if (!draft.food_ids.length) { toast('음식 태그를 하나 이상 골라 주세요'); return; }
-  const body = { roomId: R().id, id: draft.id, title: draft.title, memo: draft.memo, url: draft.url, food_ids: draft.food_ids, alcohol: draft.alcohol, photo_url: draft.photo_url };
+  draft.url = parseShare(draft.url).url || draft.url;
+  if (!draft.food_ids.length && !draft.drink_ids.length) { toast('음식이나 술 종류를 하나 이상 골라 주세요'); return; }
+  const body = { roomId: R().id, id: draft.id, title: draft.title, memo: draft.memo, url: draft.url, food_ids: draft.food_ids, drink_ids: draft.drink_ids, photo_url: draft.photo_url };
   const editing = !!draft.id; const keep = draft; draft = null;
   const res = await act(editing ? 'updatePlace' : 'createPlace', body, editing ? '수정했어요' : '장소를 올렸어요');
   if (!res) { draft = keep; render(); }

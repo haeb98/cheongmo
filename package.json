@@ -1,0 +1,13 @@
+{
+  "name": "cheongmo-quest",
+  "version": "1.0.0",
+  "private": true,
+  "description": "청첩장 모임 장소·메뉴 투표 (톡방별 링크, 게임형 UI)",
+  "type": "module",
+  "scripts": {
+    "dev": "node dev.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

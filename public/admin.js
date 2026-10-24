@@ -16,7 +16,7 @@ function tally(players) {
     c.n++; p.drink ? c.yes++ : c.no++;
     if (p.drink) (p.drink_ids || []).forEach((d) => (c.drinks[d] = (c.drinks[d] || 0) + 1));
     (p.food_ids || []).forEach((f) => (c.foods[f] = (c.foods[f] || 0) + 1));
-    if (p.place_id) c.places[p.place_id] = (c.places[p.place_id] || 0) + 1;
+    (p.place_ids || []).forEach((id) => (c.places[id] = (c.places[id] || 0) + 1));
   });
   return c;
 }
@@ -78,13 +78,13 @@ function resultPanel(r, c) {
       ${(() => { const dm = Math.max(0, ...DRINKS.map((d) => c.drinks[d.id] || 0)); return [...DRINKS].sort((a, b) => (c.drinks[b.id] || 0) - (c.drinks[a.id] || 0)).map((d) => { const n = c.drinks[d.id] || 0; return bar(img(d.sprite), esc(d.name), n, dm, n > 0 && n === dm); }).join(''); })()}</div>
     <div class="stat"><h3>STAGE 3 · 음식 (여러 개)</h3>
       ${[...S.foods].sort((a, b) => (c.foods[b.id] || 0) - (c.foods[a.id] || 0)).map((f) => { const n = c.foods[f.id] || 0; return bar(img(f.sprite), esc(f.name), n, fmax, n > 0 && n === fmax); }).join('')}</div>
-    <div class="stat"><h3>STAGE 4 · 장소 (하나만)</h3>
+    <div class="stat"><h3>STAGE 4 · 장소 (1인 최대 3곳)</h3>
       ${r.places.length ? [...r.places].sort((a, b) => (c.places[b.id] || 0) - (c.places[a.id] || 0)).map((p) => {
         const n = c.places[p.id] || 0, conf = r.confirmed_place === p.id;
         return bar(thumb(p, S.foods, 'px-ico'), esc(p.title) + (conf ? ' <span class="badge">확정</span>' : ''), n, pmax, conf || (n > 0 && n === pmax && !r.confirmed_place),
           `<button class="pbtn sm ${conf ? 'ghost' : ''}" data-act="confirm" data-id="${p.id}">${conf ? '확정 취소' : '이 장소로 확정'}</button>`);
       }).join('') : '<span class="mini">장소 후보를 먼저 올려 주세요.</span>'}</div>
-    ${voters.length ? `<div class="stat"><h3>참여한 친구</h3><div class="players">${voters.map((p) => `<span class="chip" title="${esc([...(p.drink ? (p.drink_ids || []).map(drinkOf).filter(Boolean) : []), ...(p.food_ids || []).map(food).filter(Boolean)].map((f) => f.name).join(', '))}">${esc(p.name)} · ${p.drink ? '술' : '노술'}${p.place_id ? '' : ' · 진행 중'}</span>`).join('')}</div>
+    ${voters.length ? `<div class="stat"><h3>참여한 친구</h3><div class="players">${voters.map((p) => `<span class="chip" title="${esc([...(p.drink ? (p.drink_ids || []).map(drinkOf).filter(Boolean) : []), ...(p.food_ids || []).map(food).filter(Boolean)].map((f) => f.name).join(', '))}">${esc(p.name)} · ${p.drink ? '술' : '노술'}${(p.place_ids || []).length ? '' : ' · 진행 중'}</span>`).join('')}</div>
       <button class="pbtn ghost sm" style="justify-self:start" data-act="resetvotes">이 방 투표 전부 지우기</button></div>` : ''}
   </section>`;
 }

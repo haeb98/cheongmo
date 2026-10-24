@@ -1,5 +1,5 @@
 // 친구 화면: /r/:code
-import { titleText, whenText, dday, shortDate, matches, foodScore, drinkScore, DRINKS, drinkOf, placeSprite, img, thumb, bar, esc, safeUrl, toast, api, confetti, startBlink, spr } from './shared.js';
+import { titleText, whenText, dday, shortDate, matches, foodScore, drinkScore, MAX_PLACES, DRINKS, drinkOf, placeSprite, img, thumb, bar, esc, safeUrl, toast, api, confetti, startBlink, spr } from './shared.js';
 
 const app = document.getElementById('app');
 const code = app.dataset.code;
@@ -19,7 +19,7 @@ let D = null;                 // 서버 데이터
 let ui = { step: null, name: savedName(), showAll: false, peek: false }; // step: null = 초대장
 let say = null, jump = false, popId = null, celebrated = false, busy = false, loadError = '';
 
-const LINES = { intro: '어서와! 퀘스트 받으러 왔구나?', drink: '오늘 한잔 할 거야?', drinks: '뭐 마시고 싶어? 여러 개 골라도 돼!', food: '뭐 먹고 싶어? 여러 개 골라도 돼!', place: '그럼 어디로 갈까? 하나만 골라줘!', clear: '퀘스트 완료! 그날 꼭 와~' };
+const LINES = { intro: '어서와! 퀘스트 받으러 왔구나?', drink: '오늘 한잔 할 거야?', drinks: '뭐 마시고 싶어? 여러 개 골라도 돼!', food: '뭐 먹고 싶어? 여러 개 골라도 돼!', place: `그럼 어디로 갈까? ${MAX_PLACES}곳까지 골라줘!`, clear: '퀘스트 완료! 그날 꼭 와~' };
 // 마시는 친구만 술 종류 단계를 거쳐요
 const steps = () => (D.me?.drink === true ? ['drink', 'drinks', 'food', 'place', 'clear'] : ['drink', 'food', 'place', 'clear']);
 const REACT = { y: ['오~ 달리자!!', '짠 준비 완료!'], n: ['음료수도 최고지!', '오케이 맑은 정신으로!'], drinks: ['캬~ 좋지', '오 취향 확실하네!', '짠 하자!'], food: ['냠냠! 좋아', '오 그거 맛있지', '배고파진다...'], place: ['좋은 선택!', '거기 분위기 좋대!'] };
@@ -49,14 +49,14 @@ async function load(first) {
 function applyLocal(prev, next) {
   const c = D.counts, was = prev && prev.drink != null, now = next.drink != null;
   c.drinks ||= {};
-  if (was) { c.players--; prev.drink ? c.drink.yes-- : c.drink.no--; if (prev.drink) prev.drink_ids.forEach((d) => c.drinks[d]--); prev.food_ids.forEach((f) => c.foods[f]--); if (prev.place_id) c.places[prev.place_id]--; }
-  if (now) { c.players++; next.drink ? c.drink.yes++ : c.drink.no++; if (next.drink) next.drink_ids.forEach((d) => (c.drinks[d] = (c.drinks[d] || 0) + 1)); next.food_ids.forEach((f) => (c.foods[f] = (c.foods[f] || 0) + 1)); if (next.place_id) c.places[next.place_id] = (c.places[next.place_id] || 0) + 1; }
+  if (was) { c.players--; prev.drink ? c.drink.yes-- : c.drink.no--; if (prev.drink) prev.drink_ids.forEach((d) => c.drinks[d]--); prev.food_ids.forEach((f) => c.foods[f]--); prev.place_ids.forEach((id) => c.places[id]--); }
+  if (now) { c.players++; next.drink ? c.drink.yes++ : c.drink.no++; if (next.drink) next.drink_ids.forEach((d) => (c.drinks[d] = (c.drinks[d] || 0) + 1)); next.food_ids.forEach((f) => (c.foods[f] = (c.foods[f] || 0) + 1)); next.place_ids.forEach((id) => (c.places[id] = (c.places[id] || 0) + 1)); }
   D.me = next;
 }
 
 async function send(patch) {
-  const prev = D.me ? { ...D.me, food_ids: [...D.me.food_ids], drink_ids: [...(D.me.drink_ids || [])] } : null;
-  const next = { name: ui.name, drink: null, drink_ids: [], food_ids: [], place_id: null, ...(prev || {}), ...patch };
+  const prev = D.me ? { ...D.me, food_ids: [...D.me.food_ids], drink_ids: [...(D.me.drink_ids || [])], place_ids: [...(D.me.place_ids || [])] } : null;
+  const next = { name: ui.name, drink: null, drink_ids: [], food_ids: [], place_ids: [], ...(prev || {}), ...patch };
   if (next.drink === false) next.drink_ids = [];
   applyLocal(prev, next);
   if (preview) return;
@@ -120,26 +120,28 @@ function stagePlace() {
   const perfect = (x) => (m.drink === true ? foodScore(x, m) > 0 && drinkScore(x, m) > 0 : foodScore(x, m) > 1);
   ok.sort((a, b) => perfect(b) - perfect(a) || sc(b) - sc(a) || cnt.place(b.id) - cnt.place(a.id));
   const max = Math.max(1, ...D.places.map((x) => cnt.place(x.id)));
-  const card = (x, dim) => `<button class="place ${dim ? 'dim' : ''}" data-g="place" data-v="${x.id}" aria-pressed="${m.place_id === x.id}">${thumb(x, D.foods)}
+  const picked = m.place_ids || [];
+  const card = (x, dim) => `<button class="place ${dim ? 'dim' : ''}" data-g="place" data-v="${x.id}" aria-pressed="${picked.includes(x.id)}">${picked.includes(x.id) ? `<span class="pick-no">${picked.indexOf(x.id) + 1}</span>` : ''}${thumb(x, D.foods)}
     <div class="pi-main"><span class="pl-title">${esc(x.title)}${!dim && perfect(x) ? '<span class="badge match">취향저격</span>' : ''}</span>
     ${x.memo ? `<span class="mini">${esc(x.memo)}</span>` : ''}${tags(x, m)}
     ${safeUrl(x.url) ? `<a class="c-link" href="${esc(x.url)}" target="_blank" rel="noopener" data-stop>네이버에서 보기 ↗</a>` : ''}
     <div class="meter"><div class="track"><i style="width:${(cnt.place(x.id) / max) * 100}%"></i></div><b>${cnt.place(x.id)}표</b></div></div></button>`;
   if (!D.places.length) return hud() + mascot('아직 장소 후보가 없어! 조금만 기다려줘') + `<div class="spacer"></div><div class="navrow dock"><button class="pbtn ghost" data-g="back">◀</button><button class="pbtn" data-g="reload">새로고침</button></div>`;
-  return hud() + mascot(say || (ok.length ? LINES.place : '딱 맞는 곳이 없네! 전체에서 골라줘')) + `<h2 class="stage-title"><small>CHOOSE THE STAGE</small>${ok.length ? `네 취향에 맞는 장소 ${ok.length}곳` : '전체 장소'}</h2>
+  return hud() + mascot(say || (ok.length ? LINES.place : '딱 맞는 곳이 없네! 전체에서 골라줘')) + `<h2 class="stage-title"><small>CHOOSE THE STAGE · ${picked.length}/${MAX_PLACES}</small>${ok.length ? `네 취향에 맞는 장소 ${ok.length}곳` : '전체 장소'}</h2>
+    <p class="hint" style="margin:0">가고 싶은 곳을 <b style="color:var(--pink)">최대 ${MAX_PLACES}곳</b>까지 골라줘. 한 번 더 누르면 빠져요.</p>
     ${ok.length ? `<p class="hint" style="margin:0">고른 ${m.drink === true ? '음식이나 술' : '음식'}이 있는 곳이에요. 겹치는 태그는 초록색으로 보여요.</p>` : ''}
     <div class="choices">${(ok.length ? ok : other).map((x) => card(x, false)).join('')}
     ${ok.length && other.length ? (ui.showAll ? other.map((x) => card(x, true)).join('') + `<button class="more" data-g="toggleall">다른 장소 접기</button>` : `<button class="more" data-g="toggleall">조건에 안 맞는 장소 ${other.length}곳도 보기</button>`) : ''}</div>
-    <div class="spacer"></div>` + nav(!!m.place_id, '선택 완료 ★', 'pink');
+    <div class="spacer"></div>` + nav(picked.length > 0, `선택 완료 ★ (${picked.length}/${MAX_PLACES})`, 'pink');
 }
 function stageClear() {
-  const m = me(), pl = D.places.find((x) => x.id === m.place_id);
+  const m = me(), pls = (m.place_ids || []).map((id) => D.places.find((x) => x.id === id)).filter(Boolean);
   const rank = [...D.places].sort((a, b) => cnt.place(b.id) - cnt.place(a.id)).slice(0, 3), max = Math.max(1, ...rank.map((x) => cnt.place(x.id)));
   const drinks = m.drink ? (m.drink_ids || []).map(drinkOf).filter(Boolean).map((d) => d.name).join(', ') : '';
   return `<p class="clear" style="padding-top:16px">STAGE CLEAR!</p>` + mascot(say || LINES.clear) + `
     <div class="summary"><div><span class="k">DRINK</span>${m.drink ? `마신다! ${drinks ? '· ' + esc(drinks) : ''}` : '안 마신다'}</div>
     <div><span class="k">FOOD</span>${m.food_ids.map(food).filter(Boolean).map((f) => esc(f.name)).join(', ')}</div>
-    <div><span class="k">PLACE</span>${esc(pl?.title || '-')}</div></div>
+    <div><span class="k">PLACE · ${pls.length}곳</span>${pls.length ? pls.map((x) => esc(x.title)).join('<br>') : '-'}</div></div>
     <div class="stat"><h3>지금 순위 · ${D.counts.players}/${D.room.headcount}명 참여</h3>${rank.map((x, i) => bar(thumb(x, D.foods, 'px-ico'), `${i + 1}위 ${esc(x.title)}`, cnt.place(x.id), max, i === 0 && cnt.place(x.id) > 0)).join('')}</div>
     <div class="spacer"></div>
     <div class="dock"><button class="pbtn" data-g="redo" style="width:100%">선택 바꾸기</button></div>`;
@@ -196,7 +198,7 @@ async function start() {
   const nm = (document.getElementById('g-name')?.value || '').trim().slice(0, 10);
   if (!nm) { toast('플레이어 이름을 적어 주세요'); document.getElementById('g-name')?.focus(); return; }
   ui.name = nm; try { localStorage.setItem('cm_name', nm); } catch { /* 저장 불가 */ }
-  const back = me()?.place_id;
+  const back = me()?.place_ids?.length;
   if (!me() || me().name !== nm) await send({ name: nm });
   jump = true; say = back ? `${nm} 다시 왔구나!` : null; celebrated = !!back;
   ui.step = back ? 'clear' : 'drink'; render(); scrollTo(0, 0);
@@ -228,8 +230,11 @@ app.addEventListener('click', async (e) => {
     send({ food_ids: on ? [...m.food_ids, id] : m.food_ids.filter((x) => x !== id) }); render(); return;
   }
   if (a === 'place') {
-    say = pick(REACT.place); jump = true;
-    send({ place_id: t.dataset.v }); render(); return;
+    const id = t.dataset.v, cur = m.place_ids || [];
+    if (cur.includes(id)) { send({ place_ids: cur.filter((x) => x !== id) }); render(); return; }
+    if (cur.length >= MAX_PLACES) { say = `${MAX_PLACES}곳까지만! 하나 빼고 골라줘`; jump = true; render(); toast(`장소는 ${MAX_PLACES}곳까지 고를 수 있어요`); return; }
+    say = cur.length + 1 === MAX_PLACES ? `${MAX_PLACES}곳 다 골랐다! 완료 눌러줘` : pick(REACT.place); jump = true;
+    send({ place_ids: [...cur, id] }); render(); return;
   }
 });
 app.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'g-name') { e.preventDefault(); start(); } });

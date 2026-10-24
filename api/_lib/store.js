@@ -6,6 +6,10 @@ import { HttpError, str } from './http.js';
 const SPRITES = ['meat', 'sushi', 'pasta', 'rice', 'dumpling', 'chicken', 'wine', 'soju', 'beer', 'juice', 'heart'];
 // 술 종류 (public/shared.js 의 DRINKS 와 같은 목록)
 const DRINK_IDS = ['beer', 'soju', 'wine', 'whisky', 'etc', 'corkage'];
+// 장소는 1인 최대 3곳까지 (public/shared.js 의 MAX_PLACES 와 같아요)
+const MAX_PLACES = 3;
+// 예전(v2까지) 한 곳만 고르던 기록도 함께 읽어요
+export const placeIdsOf = (p) => (Array.isArray(p.place_ids) && p.place_ids.length ? p.place_ids : p.place_id ? [p.place_id] : []);
 const drinkList = (v) => [...new Set((Array.isArray(v) ? v : []).filter((d) => DRINK_IDS.includes(d)))];
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
 const isTime = (v) => /^\d{2}:\d{2}$/.test(v || '');
@@ -30,7 +34,7 @@ export function tally(players) {
     p.drink ? c.drink.yes++ : c.drink.no++;
     if (p.drink) (p.drink_ids || []).forEach((d) => (c.drinks[d] = (c.drinks[d] || 0) + 1));
     (p.food_ids || []).forEach((f) => (c.foods[f] = (c.foods[f] || 0) + 1));
-    if (p.place_id) c.places[p.place_id] = (c.places[p.place_id] || 0) + 1;
+    placeIdsOf(p).forEach((id) => (c.places[id] = (c.places[id] || 0) + 1));
   }
   return c;
 }
@@ -43,7 +47,7 @@ export async function publicRoom(code, deviceId) {
   const me = deviceId ? players.find((p) => p.device_id === deviceId) : null;
   return {
     room, settings, foods, places, counts: tally(players),
-    me: me ? { name: me.name, drink: me.drink, drink_ids: me.drink_ids || [], food_ids: me.food_ids || [], place_id: me.place_id } : null,
+    me: me ? { name: me.name, drink: me.drink, drink_ids: me.drink_ids || [], food_ids: me.food_ids || [], place_ids: placeIdsOf(me) } : null,
   };
 }
 
@@ -62,13 +66,13 @@ export async function vote(body) {
     const valid = new Set((await listFoods()).map((f) => f.id));
     row.food_ids = [...new Set((Array.isArray(body.food_ids) ? body.food_ids : []).filter((id) => valid.has(id)))];
   }
-  if ('place_id' in body) {
-    if (body.place_id === null) row.place_id = null;
-    else {
-      const ok = (await db.select('places', { room_id: room.id, id: str(body.place_id, 64) }))[0];
-      if (!ok) throw new HttpError('없는 장소예요. 새로고침해 주세요');
-      row.place_id = ok.id;
-    }
+  if ('place_ids' in body) {
+    const want = [...new Set((Array.isArray(body.place_ids) ? body.place_ids : []).map((x) => str(x, 64)).filter(Boolean))];
+    if (want.length > MAX_PLACES) throw new HttpError(`장소는 ${MAX_PLACES}곳까지 고를 수 있어요`);
+    const valid = new Set((await db.select('places', { room_id: room.id })).map((p) => p.id));
+    if (want.some((id) => !valid.has(id))) throw new HttpError('없는 장소가 있어요. 새로고침해 주세요');
+    row.place_ids = want;
+    row.place_id = want[0] || null; // 예전 칸도 맞춰 둬요
   }
   await db.upsert('players', row, 'room_id,device_id');
   return publicRoom(room.code, device_id);
@@ -84,7 +88,7 @@ export async function adminState() {
     rooms: rooms.map((r) => ({
       ...r,
       places: places.filter((p) => p.room_id === r.id),
-      players: players.filter((p) => p.room_id === r.id).map(({ device_id, ...p }) => p),
+      players: players.filter((p) => p.room_id === r.id).map(({ device_id, ...p }) => ({ ...p, place_ids: placeIdsOf(p) })),
     })),
   };
 }
@@ -146,7 +150,13 @@ export const adminActions = {
   async updatePlace(b) { await db.update('places', { id: str(b.id, 64) }, placeFields(b)); },
   async deletePlace(b) {
     const id = str(b.id, 64);
-    await db.update('players', { place_id: id }, { place_id: null });
+    const pl = (await db.select('places', { id }))[0];
+    if (pl) {
+      for (const p of await db.select('players', { room_id: pl.room_id })) {
+        const ids = placeIdsOf(p);
+        if (ids.includes(id)) { const rest = ids.filter((x) => x !== id); await db.update('players', { id: p.id }, { place_ids: rest, place_id: rest[0] || null }); }
+      }
+    }
     await db.update('rooms', { confirmed_place: id }, { confirmed_place: null, final_date: null, final_time: null, final_note: null });
     await db.remove('places', { id });
   },

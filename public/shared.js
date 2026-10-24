@@ -29,6 +29,9 @@ export function dday(date) {
   return n < 0 ? '마감됨' : n === 0 ? '오늘 마감' : 'D-' + n;
 }
 export const shortDate = (d) => (d ? d.slice(5).replace('-', '.') : '');
+// 장소는 1인 최대 몇 곳까지 고를지
+export const MAX_PLACES = 3;
+
 /* ---------- 술 종류 (고정 목록) ---------- */
 export const DRINKS = [
   { id: 'beer', name: '맥주', sprite: 'beer' },

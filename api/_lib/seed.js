@@ -16,7 +16,7 @@ export function memorySeed() {
     P('p4', '연남 한식 밥집 (예시)', '술 없이 조용하게', '연남동 한식 룸', ['f-rice'], [], 3),
   ];
   const players = [
-    ['민지', true, ['wine'], ['f-meat', 'f-pasta'], 'p1'], ['준호', true, ['beer', 'etc'], ['f-sushi'], 'p3'], ['서연', false, [], ['f-rice'], 'p2'],
-  ].map(([name, drink, drink_ids, food_ids, place_id], i) => ({ id: 'pl' + i, room_id: room.id, device_id: 'seed-' + i, name, drink, drink_ids, food_ids, place_id, updated_at: t(40 + i), created_at: t(40 + i) }));
+    ['민지', true, ['wine'], ['f-meat', 'f-pasta'], ['p1', 'p2']], ['준호', true, ['beer', 'etc'], ['f-sushi'], ['p3', 'p2', 'p1']], ['서연', false, [], ['f-rice'], ['p2', 'p4']],
+  ].map(([name, drink, drink_ids, food_ids, place_ids], i) => ({ id: 'pl' + i, room_id: room.id, device_id: 'seed-' + i, name, drink, drink_ids, food_ids, place_ids, place_id: place_ids[0], updated_at: t(40 + i), created_at: t(40 + i) }));
   return { settings: [{ id: 1, host: '해빈', title_idx: 0, custom_title: '' }], foods, rooms: [room], places, players };
 }
